@@ -55,9 +55,40 @@ async function sendDice(chatId, emoji) {
   return await res.json();
 }
 
+// Ambil daftar model aktif yang mendukung generateContent langsung dari API Key Anda
+async function ambilDaftarModelAktif() {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`;
+  const res = await fetch(url);
+  const json = await res.json();
+  if (!json.models) {
+    throw new Error(json?.error?.message || "Gagal mengambil daftar model dari Google.");
+  }
+
+  // Filter hanya model yang mendukung generateContent dan bukan model embedding/imagen
+  const modelTersedia = json.models
+    .filter(
+      (m) =>
+        m.supportedGenerationMethods &&
+        m.supportedGenerationMethods.includes("generateContent") &&
+        (m.name.includes("gemini") || m.name.includes("gemma")) &&
+        !m.name.includes("embedding") &&
+        !m.name.includes("image")
+    )
+    .map((m) => m.name.replace("models/", ""));
+
+  // Prioritaskan varian flash / lite agar cepat dan ringan
+  modelTersedia.sort((a, b) => {
+    const skorA = a.includes("lite") ? 1 : a.includes("flash") ? 2 : 3;
+    const skorB = b.includes("lite") ? 1 : b.includes("flash") ? 2 : 3;
+    return skorA - skorB;
+  });
+
+  return modelTersedia;
+}
+
 async function panggilModelGemini(modelName, promptText) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6500);
+  const timer = setTimeout(() => controller.abort(), 6000);
 
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
@@ -72,7 +103,7 @@ async function panggilModelGemini(modelName, promptText) {
     const json = await res.json();
     const teks = json?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!teks) {
-      throw new Error(json?.error?.message || `Model ${modelName} kosong`);
+      throw new Error(`[${modelName}] ${json?.error?.message || "Respons kosong"}`);
     }
     return teks;
   } finally {
@@ -91,26 +122,24 @@ async function tanyaAI(pertanyaan, namaUser) {
     `Jangan gunakan format Markdown seperti tanda bintang ganda (**), cukup gunakan teks biasa yang rapi.\n\n` +
     `Pertanyaan pengguna: ${pertanyaan}`;
 
-  // Jalankan jalur utama (gemini-3.8-flash) dan jalur cadangan (lite & gemma) bersamaan
-  const jalankanBalapanModel = () =>
-    Promise.any([
-      panggilModelGemini("gemini-3.8-flash", promptLengkap),
-      panggilModelGemini("gemini-3.8-flash-lite", promptLengkap),
-      panggilModelGemini("gemma-3-27b-it", promptLengkap)
-    ]);
-
   try {
-    const jawaban = await jalankanBalapanModel();
-    return jawaban.length > 4000 ? jawaban.slice(0, 4000) + "..." : jawaban;
-  } catch (err1) {
-    // Jika semua jalur sedang sibuk, tunggu 1,5 detik lalu coba otomatis 1 kali lagi
-    try {
-      await new Promise((r) => setTimeout(r, 1500));
-      const jawabanRetry = await jalankanBalapanModel();
-      return jawabanRetry.length > 4000 ? jawabanRetry.slice(0, 4000) + "..." : jawabanRetry;
-    } catch (err2) {
-      return "⏳ Server AI Google sedang mengalami antrean trafik tinggi sesaat. Silakan kirim ulang perintah /tanya kamu dalam beberapa detik.";
+    const daftarModel = await ambilDaftarModelAktif();
+    if (daftarModel.length === 0) {
+      return "⚠️ Tidak ada model teks yang tersedia pada API Key ini.";
     }
+
+    // Ambil maksimal 4 model teratas yang aktif dan jalankan bersamaan
+    const kandidat = daftarModel.slice(0, 4);
+    const jawaban = await Promise.any(
+      kandidat.map((model) => panggilModelGemini(model, promptLengkap))
+    );
+
+    return jawaban.length > 4000 ? jawaban.slice(0, 4000) + "..." : jawaban;
+  } catch (err) {
+    const detail = err?.errors
+      ? err.errors.map((e) => e.message).join("\n")
+      : err.message;
+    return `⚠️ Gagal memproses AI:\n${detail}`;
   }
 }
 
@@ -265,4 +294,4 @@ module.exports = async function handler(req, res) {
 
   return res.status(200).json({ ok: true });
 };
-          
+            
