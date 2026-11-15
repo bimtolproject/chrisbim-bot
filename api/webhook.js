@@ -57,7 +57,7 @@ async function sendDice(chatId, emoji) {
 
 async function panggilModelGemini(modelName, promptText) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 7500); // Batas 7,5 detik agar tidak kena timeout Vercel
+  const timer = setTimeout(() => controller.abort(), 6500);
 
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
@@ -91,18 +91,26 @@ async function tanyaAI(pertanyaan, namaUser) {
     `Jangan gunakan format Markdown seperti tanda bintang ganda (**), cukup gunakan teks biasa yang rapi.\n\n` +
     `Pertanyaan pengguna: ${pertanyaan}`;
 
-  try {
-    // Panggil 3 kandidat model sekaligus, ambil yang paling cepat berhasil merespons
-    const jawaban = await Promise.any([
+  // Jalankan jalur utama (gemini-3.8-flash) dan jalur cadangan (lite & gemma) bersamaan
+  const jalankanBalapanModel = () =>
+    Promise.any([
       panggilModelGemini("gemini-3.8-flash", promptLengkap),
-      panggilModelGemini("gemini-2.5-flash", promptLengkap),
-      panggilModelGemini("gemini-flash-latest", promptLengkap)
+      panggilModelGemini("gemini-3.8-flash-lite", promptLengkap),
+      panggilModelGemini("gemma-3-27b-it", promptLengkap)
     ]);
 
+  try {
+    const jawaban = await jalankanBalapanModel();
     return jawaban.length > 4000 ? jawaban.slice(0, 4000) + "..." : jawaban;
-  } catch (err) {
-    const daftarError = err?.errors?.map((e) => e.message).join(" | ") || err.message;
-    return `⚠️ AI Gagal Merespons:\n${daftarError}`;
+  } catch (err1) {
+    // Jika semua jalur sedang sibuk, tunggu 1,5 detik lalu coba otomatis 1 kali lagi
+    try {
+      await new Promise((r) => setTimeout(r, 1500));
+      const jawabanRetry = await jalankanBalapanModel();
+      return jawabanRetry.length > 4000 ? jawabanRetry.slice(0, 4000) + "..." : jawabanRetry;
+    } catch (err2) {
+      return "⏳ Server AI Google sedang mengalami antrean trafik tinggi sesaat. Silakan kirim ulang perintah /tanya kamu dalam beberapa detik.";
+    }
   }
 }
 
@@ -155,7 +163,6 @@ module.exports = async function handler(req, res) {
         } else {
           await sendTyping(chatId);
           const jawabanAI = await tanyaAI(pertanyaan, firstName);
-          // Kirim tanpa HTML parser agar jawaban AI apa pun tidak pernah gagal terkirim
           await sendMessage(chatId, jawabanAI, false);
         }
       }
@@ -258,4 +265,4 @@ module.exports = async function handler(req, res) {
 
   return res.status(200).json({ ok: true });
 };
-        
+          
