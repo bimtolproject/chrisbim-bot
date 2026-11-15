@@ -1,6 +1,20 @@
 const TOKEN = "9211771792:AAHt3M35nDoY7Rn4aGuDWQkGafykJE7r7sI";
 const TELEGRAM_URL = `https://api.telegram.org/bot${TOKEN}`;
 
+// Bank Soal Kuis (Bisa Anda tambah atau ubah kapan saja)
+const BANK_KUIS = [
+  { soal: "Planet terbesar di tata surya kita adalah?", jawaban: "jupiter" },
+  { soal: "Apa ibu kota negara Jepang?", jawaban: "tokyo" },
+  { soal: "Berapa hasil dari 15 x 4 + 10?", jawaban: "70" },
+  { soal: "Komponen motor matic yang berfungsi mengubah rasio putaran secara otomatis disebut?", jawaban: "cvt" },
+  { soal: "Unsur kimia dengan lambang O adalah?", jawaban: "oksigen" },
+  { soal: "Gunung tertinggi di Pulau Jawa adalah Gunung?", jawaban: "semeru" },
+  { soal: "Bahasa pemrograman yang berjalan langsung di browser web adalah?", jawaban: "javascript" },
+  { soal: "Berapa jumlah provinsi di Pulau Jawa saat ini?", jawaban: "6" },
+  { soal: "Hewan tercepat di darat adalah?", jawaban: "cheetah" },
+  { soal: "Siapa pencipta bot BIMTOL? (tulis username tanpa @)", jawaban: "bimarchp" }
+];
+
 async function sendMessage(chatId, text) {
   await fetch(`${TELEGRAM_URL}/sendMessage`, {
     method: "POST",
@@ -11,6 +25,18 @@ async function sendMessage(chatId, text) {
       parse_mode: "HTML"
     })
   });
+}
+
+async function sendDice(chatId, emoji) {
+  const res = await fetch(`${TELEGRAM_URL}/sendDice`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      emoji: emoji
+    })
+  });
+  return await res.json();
 }
 
 export default async function handler(req, res) {
@@ -24,20 +50,24 @@ export default async function handler(req, res) {
     if (data && data.message && data.message.text) {
       const chatId = data.message.chat.id;
       const text = data.message.text.trim();
+      const lowerText = text.toLowerCase();
       const firstName = data.message.from.first_name || "Kak";
 
-      if (text === "/start" || text === "/start@chrisbim_bot") {
+      // 1. Command /start
+      if (lowerText === "/start" || lowerText === "/start@chrisbim_bot") {
         const pesanSambutan =
           `Halo, ${firstName}!. Selamat datang di bot @chrisbim_bot\n\n` +
           `Perkenalkan nama saya BIMTOL, saya merupakan ciptaan @bimarchp\n\n` +
           `Bot ini akan digunakan untuk membantu dan melayani kamu setiap hari!\n\n` +
           `Pilih menu dibawah ini untuk memerintahkan BIMTOL!\n` +
           `• /start - Memulai bot\n` +
-          `• /info - Informasi bot`;
+          `• /info - Informasi bot\n` +
+          `• /game - Daftar game (Adu Dadu & Kuis)`;
 
         await sendMessage(chatId, pesanSambutan);
       } 
-      else if (text === "/info" || text === "/info@chrisbim_bot") {
+      // 2. Command /info
+      else if (lowerText === "/info" || lowerText === "/info@chrisbim_bot") {
         const pesanInfo =
           `Halo, ${firstName}!, ini adalah informasi seputar saya\n` +
           `Nama : BIMTOL\n` +
@@ -48,18 +78,105 @@ export default async function handler(req, res) {
 
         await sendMessage(chatId, pesanInfo);
       } 
-      // Respon jika user mengirim kata "Bimtol" (tidak peduli huruf besar/kecil)
-      else if (text.toLowerCase() === "bimtol") {
+      // 3. Panggilan kata "Bimtol"
+      else if (lowerText === "bimtol") {
         const pesanBimtol =
           `Halo, ${firstName}! Bimtol masih disini!\n` +
           `klik tombol Menu untuk memerintahkan saya!`;
 
         await sendMessage(chatId, pesanBimtol);
       }
+      // 4. Menu Daftar Game (/game)
+      else if (lowerText === "/game" || lowerText === "/game@chrisbim_bot") {
+        const menuGame =
+          `🎮 <b>MINI GAME BIMTOL</b>\n\n` +
+          `Pilih game yang ingin kamu mainkan:\n` +
+          `• /dadu - Adu gede angka lempar dadu lawan BIMTOL 🎲\n` +
+          `• /kuis - Kuis pengetahuan & tebak-tebakan 🧠`;
+
+        await sendMessage(chatId, menuGame);
+      }
+      // 5. Game Adu Gede Dadu (/dadu)
+      else if (lowerText === "/dadu" || lowerText === "/dadu@chrisbim_bot") {
+        await sendMessage(chatId, `🎲 <b>ADU GEDE DADU!</b>\nDadu pertama milik <b>${firstName}</b>, dadu kedua milik <b>BIMTOL</b>...`);
+
+        // Lempar dadu user & dadu bot bersamaan
+        const [daduUserRes, daduBotRes] = await Promise.all([
+          sendDice(chatId, "🎲"),
+          sendDice(chatId, "🎲")
+        ]);
+
+        const skorUser = daduUserRes?.result?.dice?.value;
+        const skorBot = daduBotRes?.result?.dice?.value;
+
+        if (skorUser && skorBot) {
+          // Tunggu 3,2 detik sampai animasi dadu berhenti berputar di layar
+          await new Promise((r) => setTimeout(r, 3200));
+
+          let hasil = "";
+          if (skorUser > skorBot) {
+            hasil = `🎉 <b>${firstName.toUpperCase()} MENANG!</b> Angkamu lebih besar!`;
+          } else if (skorUser < skorBot) {
+            hasil = `😎 <b>BIMTOL MENANG!</b> Coba lempar lagi lewat /dadu!`;
+          } else {
+            hasil = `🤝 <b>SERI!</b> Angka dadu kita kembar!`;
+          }
+
+          await sendMessage(
+            chatId,
+            `📊 <b>Hasil Lempar Dadu:</b>\n` +
+            `• ${firstName}: <b>${skorUser}</b>\n` +
+            `• BIMTOL: <b>${skorBot}</b>\n\n` +
+            `${hasil}`
+          );
+        }
+      }
+      // 6. Game Kuis - Minta Soal (/kuis)
+      else if (lowerText === "/kuis" || lowerText === "/kuis@chrisbim_bot") {
+        const indexAcak = Math.floor(Math.random() * BANK_KUIS.length);
+        const nomorSoal = indexAcak + 1;
+        const itemKuis = BANK_KUIS[indexAcak];
+
+        const pesanSoal =
+          `🧠 <b>KUIS BIMTOL (Soal #${nomorSoal})</b>\n\n` +
+          `Pertanyaan:\n<i>"${itemKuis.soal}"</i>\n\n` +
+          `Cara menjawab:\nKetik <code>/jawab ${nomorSoal} jawaban_kamu</code>\n` +
+          `Contoh: <code>/jawab ${nomorSoal} ${itemKuis.jawaban.slice(0, 2)}...</code>`;
+
+        await sendMessage(chatId, pesanSoal);
+      }
+      // 7. Game Kuis - Cek Jawaban (/jawab <nomor> <teks_jawaban>)
+      else if (lowerText.startsWith("/jawab")) {
+        const isi = lowerText.replace("/jawab@chrisbim_bot", "").replace("/jawab", "").trim();
+        const bagian = isi.split(/\s+/);
+        const nomorSoal = parseInt(bagian[0], 10);
+        const jawabanUser = bagian.slice(1).join(" ").trim();
+
+        if (isNaN(nomorSoal) || nomorSoal < 1 || nomorSoal > BANK_KUIS.length || !jawabanUser) {
+          await sendMessage(
+            chatId,
+            `Format jawaban salah!\nKetik /kuis untuk mendapatkan soal, lalu jawab dengan format:\n<code>/jawab [nomor_soal] [jawaban]</code>`
+          );
+        } else {
+          const kuisTarget = BANK_KUIS[nomorSoal - 1];
+          if (jawabanUser === kuisTarget.jawaban.toLowerCase()) {
+            await sendMessage(
+              chatId,
+              `✅ <b>BENAR!</b> Mantap ${firstName}, jawabannya memang <b>${kuisTarget.jawaban.toUpperCase()}</b>!\n\nKetik /kuis untuk soal berikutnya.`
+            );
+          } else {
+            await sendMessage(
+              chatId,
+              `❌ <b>KURANG TEPAT!</b> Jawaban <i>"${jawabanUser}"</i> masih salah.\n\nCoba jawab lagi dengan <code>/jawab ${nomorSoal} ...</code> atau ketik /kuis untuk ganti soal.`
+            );
+          }
+        }
+      }
+      // Balasan default
       else {
         await sendMessage(
           chatId,
-          "Perintah tidak dikenali. Ketik /info untuk melihat informasi BIMTOL atau /start untuk memulai."
+          "Perintah tidak dikenali. Ketik /info untuk melihat informasi BIMTOL, /game untuk bermain, atau /start untuk memulai."
         );
       }
     }
@@ -68,4 +185,4 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ ok: true });
-}
+    }
