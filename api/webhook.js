@@ -48,6 +48,14 @@ export default async function handler(req, res) {
 
         await sendMessage(chatId, pesanInfo);
       } 
+      // Respon jika user mengirim kata "Bimtol" (tidak peduli huruf besar/kecil)
+      else if (text.toLowerCase() === "bimtol") {
+        const pesanBimtol =
+          `Halo, ${firstName}! Bimtol masih disini!\n` +
+          `klik tombol Menu untuk memerintahkan saya!`;
+
+        await sendMessage(chatId, pesanBimtol);
+      }
       else {
         await sendMessage(
           chatId,
@@ -59,6 +67,5 @@ export default async function handler(req, res) {
     console.error(err);
   }
 
-  // Wajib langsung kirim status 200 ke Telegram agar tidak pernah nyangkut
   return res.status(200).json({ ok: true });
 }
