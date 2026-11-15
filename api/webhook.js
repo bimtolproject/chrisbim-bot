@@ -2,7 +2,6 @@ const TOKEN = "9211771792:AAHt3M35nDoY7Rn4aGuDWQkGafykJE7r7sI";
 const TELEGRAM_URL = `https://api.telegram.org/bot${TOKEN}`;
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 
-// Bank Soal Kuis
 const BANK_KUIS = [
   { soal: "Planet terbesar di tata surya kita adalah?", jawaban: "jupiter" },
   { soal: "Apa ibu kota negara Jepang?", jawaban: "tokyo" },
@@ -17,7 +16,7 @@ const BANK_KUIS = [
 ];
 
 function escapeHTML(str) {
-  return str
+  return String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
@@ -70,20 +69,17 @@ async function panggilModelGemini(modelName, promptText) {
   return await res.json();
 }
 
-// Fungsi memanggil otak AI Gemini menggunakan model terbaru gemini-3.8-flash
 async function tanyaAI(pertanyaan, namaUser) {
   if (!GEMINI_API_KEY) {
     return "⚠️ API Key AI belum dipasang di pengaturan Vercel (GEMINI_API_KEY).";
   }
 
-  const instruksiSistem =
+  const promptLengkap =
     `Kamu adalah BIMTOL, asisten AI pintar di Telegram yang diciptakan oleh @bimarchp. ` +
     `Jawab pertanyaan dari ${namaUser} dengan bahasa Indonesia yang ramah, jelas, dan ringkas. ` +
-    `Jangan gunakan format Markdown seperti tanda bintang ganda (**), cukup gunakan teks biasa yang rapi.`;
+    `Jangan gunakan format Markdown seperti tanda bintang ganda (**), cukup gunakan teks biasa yang rapi.\n\n` +
+    `Pertanyaan pengguna: ${pertanyaan}`;
 
-  const promptLengkap = `${instruksiSistem}\n\nPertanyaan pengguna: ${pertanyaan}`;
-
-  // Daftar urutan model yang dicoba
   const daftarModel = ["gemini-3.8-flash", "gemini-flash-latest"];
   let jawaban = null;
   let errorTerakhir = "";
@@ -106,7 +102,7 @@ async function tanyaAI(pertanyaan, namaUser) {
   return teksAman.length > 4000 ? teksAman.slice(0, 4000) + "..." : teksAman;
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(200).send("BIMTOL Bot Aktif!");
   }
@@ -120,7 +116,6 @@ export default async function handler(req, res) {
       const lowerText = text.toLowerCase();
       const firstName = data.message.from.first_name || "Kak";
 
-      // 1. Command /start
       if (lowerText === "/start" || lowerText === "/start@chrisbim_bot") {
         const pesanSambutan =
           `Halo, ${firstName}!. Selamat datang di bot @chrisbim_bot\n\n` +
@@ -134,7 +129,6 @@ export default async function handler(req, res) {
 
         await sendMessage(chatId, pesanSambutan);
       } 
-      // 2. Command /info
       else if (lowerText === "/info" || lowerText === "/info@chrisbim_bot") {
         const pesanInfo =
           `Halo, ${firstName}!, ini adalah informasi seputar saya\n` +
@@ -146,7 +140,6 @@ export default async function handler(req, res) {
 
         await sendMessage(chatId, pesanInfo);
       } 
-      // 3. Command AI /tanya <pertanyaan>
       else if (lowerText.startsWith("/tanya")) {
         const pertanyaan = text.replace(/^\/tanya(@chrisbim_bot)?/i, "").trim();
 
@@ -161,7 +154,6 @@ export default async function handler(req, res) {
           await sendMessage(chatId, jawabanAI);
         }
       }
-      // 4. Panggilan kata "Bimtol"
       else if (lowerText === "bimtol") {
         const pesanBimtol =
           `Halo, ${firstName}! Bimtol masih disini!\n` +
@@ -169,7 +161,6 @@ export default async function handler(req, res) {
 
         await sendMessage(chatId, pesanBimtol);
       }
-      // 5. Menu Daftar Game (/game)
       else if (lowerText === "/game" || lowerText === "/game@chrisbim_bot") {
         const menuGame =
           `🎮 <b>MINI GAME BIMTOL</b>\n\n` +
@@ -179,7 +170,6 @@ export default async function handler(req, res) {
 
         await sendMessage(chatId, menuGame);
       }
-      // 6. Game Adu Gede Dadu (/dadu)
       else if (lowerText === "/dadu" || lowerText === "/dadu@chrisbim_bot") {
         await sendMessage(chatId, `🎲 <b>ADU GEDE DADU!</b>\nDadu pertama milik <b>${firstName}</b>, dadu kedua milik <b>BIMTOL</b>...`);
 
@@ -212,7 +202,6 @@ export default async function handler(req, res) {
           );
         }
       }
-      // 7. Game Kuis - Minta Soal (/kuis)
       else if (lowerText === "/kuis" || lowerText === "/kuis@chrisbim_bot") {
         const indexAcak = Math.floor(Math.random() * BANK_KUIS.length);
         const nomorSoal = indexAcak + 1;
@@ -225,7 +214,6 @@ export default async function handler(req, res) {
 
         await sendMessage(chatId, pesanSoal);
       }
-      // 8. Game Kuis - Cek Jawaban (/jawab <nomor> <jawaban>)
       else if (lowerText.startsWith("/jawab")) {
         const isi = lowerText.replace("/jawab@chrisbim_bot", "").replace("/jawab", "").trim();
         const bagian = isi.split(/\s+/);
@@ -252,7 +240,6 @@ export default async function handler(req, res) {
           }
         }
       }
-      // Balasan default
       else {
         await sendMessage(
           chatId,
@@ -265,6 +252,5 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ ok: true });
-}
-true });
-}
+};
+      
