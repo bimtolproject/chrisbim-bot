@@ -117,7 +117,7 @@ async function tanyaAI(pertanyaan, namaUser) {
   }
 
   const promptLengkap =
-    `Kamu adalah BIMTOL, asisten AI pintar di Telegram yang diciptakan oleh @bimarchp. ` +
+    `Kamu adalah BIMTOL, asisten AI pintar di Telegram yang diciptakan oleh @bimrchp. ` +
     `Jawab pertanyaan dari ${namaUser} dengan bahasa Indonesia yang ramah, jelas, dan ringkas. ` +
     `Jangan gunakan format Markdown seperti tanda bintang ganda (**), cukup gunakan teks biasa yang rapi.\n\n` +
     `Pertanyaan pengguna: ${pertanyaan}`;
@@ -160,12 +160,12 @@ module.exports = async function handler(req, res) {
       if (lowerText === "/start" || lowerText === "/start@chrisbim_bot") {
         const pesanSambutan =
           `Halo, ${firstName}!. Selamat datang di bot @chrisbim_bot\n\n` +
-          `Perkenalkan nama saya BIMTOL, saya merupakan ciptaan @bimarchp\n\n` +
+          `Perkenalkan nama saya BIMTOL, saya merupakan ciptaan @bimrchp\n\n` +
           `Bot ini akan digunakan untuk membantu dan melayani kamu setiap hari!\n\n` +
           `Pilih menu dibawah ini untuk memerintahkan BIMTOL!\n` +
           `• /start - Memulai bot\n` +
           `• /info - Informasi bot\n` +
-          `• /tanya [pertanyaan] - Tanya apa saja ke AI BIMTOL\n` +
+          `• /tanya [pertanyaan] - Tanya apa saja ke BIMTOL\n` +
           `• /game - Daftar game (Adu Dadu & Kuis)`;
 
         await sendMessage(chatId, pesanSambutan);
@@ -187,7 +187,7 @@ module.exports = async function handler(req, res) {
         if (!pertanyaan) {
           await sendMessage(
             chatId,
-            `Cara menggunakan fitur AI:\nKetik <code>/tanya</code> diikuti pertanyaan kamu.\n\nContoh:\n<code>/tanya jelaskan cara kerja mesin 4 tak</code>`
+            `Cara menggunakan fitur AI:\nKetik <code>/tanya</code> diikuti pertanyaan kamu.\n\nContoh:\n<code>/tanya jelaskan sejarah singkat hutao!</code>`
           );
         } else {
           await sendTyping(chatId);
@@ -198,7 +198,7 @@ module.exports = async function handler(req, res) {
       else if (lowerText === "bimtol") {
         const pesanBimtol =
           `Halo, ${firstName}! Bimtol masih disini!\n` +
-          `klik tombol Menu untuk memerintahkan saya!`;
+          `Klik tombol menu untuk memerintahkan saya!`;
 
         await sendMessage(chatId, pesanBimtol);
       }
@@ -206,8 +206,7 @@ module.exports = async function handler(req, res) {
         const menuGame =
           `🎮 <b>MINI GAME BIMTOL</b>\n\n` +
           `Pilih game yang ingin kamu mainkan:\n` +
-          `• /dadu - Adu gede angka lempar dadu lawan BIMTOL 🎲\n` +
-          `• /kuis - Kuis pengetahuan & tebak-tebakan 🧠`;
+          `• /dadu - Adu gede angka lempar dadu 🎲`;
 
         await sendMessage(chatId, menuGame);
       }
@@ -284,7 +283,7 @@ module.exports = async function handler(req, res) {
       else {
         await sendMessage(
           chatId,
-          "Perintah tidak dikenali. Ketik /tanya [pertanyaan] untuk bertanya ke AI, /game untuk bermain, atau /info untuk info bot."
+          "Perintah tidak dikenali. Silahkan klik menu untuk memerintahkan BIMTOL."
         );
       }
     }
