@@ -70,7 +70,7 @@ async function panggilModelGemini(modelName, promptText) {
   return await res.json();
 }
 
-// Fungsi memanggil otak AI Gemini dengan model cadangan & pelaporan error jelas
+// Fungsi memanggil otak AI Gemini menggunakan model terbaru gemini-3.8-flash
 async function tanyaAI(pertanyaan, namaUser) {
   if (!GEMINI_API_KEY) {
     return "⚠️ API Key AI belum dipasang di pengaturan Vercel (GEMINI_API_KEY).";
@@ -83,17 +83,23 @@ async function tanyaAI(pertanyaan, namaUser) {
 
   const promptLengkap = `${instruksiSistem}\n\nPertanyaan pengguna: ${pertanyaan}`;
 
-  // Coba model utama (gemini-2.5-flash), jika gagal coba cadangan (gemini-2.0-flash)
-  let json = await panggilModelGemini("gemini-2.5-flash", promptLengkap);
-  if (!json?.candidates?.[0]?.content?.parts?.[0]?.text) {
-    json = await panggilModelGemini("gemini-2.0-flash", promptLengkap);
+  // Daftar urutan model yang dicoba
+  const daftarModel = ["gemini-3.8-flash", "gemini-flash-latest"];
+  let jawaban = null;
+  let errorTerakhir = "";
+
+  for (const model of daftarModel) {
+    const json = await panggilModelGemini(model, promptLengkap);
+    const teks = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (teks) {
+      jawaban = teks;
+      break;
+    }
+    errorTerakhir = json?.error?.message || `Gagal memanggil ${model}`;
   }
 
-  const jawaban = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-
   if (!jawaban) {
-    const detailError = json?.error?.message || "Respons kosong dari server AI.";
-    return `⚠️ <b>AI Gagal Merespons:</b>\n<code>${escapeHTML(detailError)}</code>`;
+    return `⚠️ <b>AI Gagal Merespons:</b>\n<code>${escapeHTML(errorTerakhir)}</code>`;
   }
 
   const teksAman = escapeHTML(jawaban);
@@ -259,4 +265,6 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ ok: true });
+}
+true });
 }
