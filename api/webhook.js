@@ -15,23 +15,21 @@ const BANK_KUIS = [
   { soal: "Siapa pencipta bot BIMTOL? (tulis username tanpa @)", jawaban: "bimarchp" }
 ];
 
-function escapeHTML(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
+async function sendMessage(chatId, text, useHTML = true) {
+  const payload = {
+    chat_id: chatId,
+    text: text
+  };
+  if (useHTML) {
+    payload.parse_mode = "HTML";
+  }
 
-async function sendMessage(chatId, text) {
-  await fetch(`${TELEGRAM_URL}/sendMessage`, {
+  const res = await fetch(`${TELEGRAM_URL}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: text,
-      parse_mode: "HTML"
-    })
+    body: JSON.stringify(payload)
   });
+  return await res.json();
 }
 
 async function sendTyping(chatId) {
@@ -58,15 +56,28 @@ async function sendDice(chatId, emoji) {
 }
 
 async function panggilModelGemini(modelName, promptText) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: promptText }] }]
-    })
-  });
-  return await res.json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 7500); // Batas 7,5 detik agar tidak kena timeout Vercel
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: promptText }] }]
+      })
+    });
+    const json = await res.json();
+    const teks = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!teks) {
+      throw new Error(json?.error?.message || `Model ${modelName} kosong`);
+    }
+    return teks;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function tanyaAI(pertanyaan, namaUser) {
@@ -80,26 +91,19 @@ async function tanyaAI(pertanyaan, namaUser) {
     `Jangan gunakan format Markdown seperti tanda bintang ganda (**), cukup gunakan teks biasa yang rapi.\n\n` +
     `Pertanyaan pengguna: ${pertanyaan}`;
 
-  const daftarModel = ["gemini-3.8-flash", "gemini-flash-latest"];
-  let jawaban = null;
-  let errorTerakhir = "";
+  try {
+    // Panggil 3 kandidat model sekaligus, ambil yang paling cepat berhasil merespons
+    const jawaban = await Promise.any([
+      panggilModelGemini("gemini-3.8-flash", promptLengkap),
+      panggilModelGemini("gemini-2.5-flash", promptLengkap),
+      panggilModelGemini("gemini-flash-latest", promptLengkap)
+    ]);
 
-  for (const model of daftarModel) {
-    const json = await panggilModelGemini(model, promptLengkap);
-    const teks = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (teks) {
-      jawaban = teks;
-      break;
-    }
-    errorTerakhir = json?.error?.message || `Gagal memanggil ${model}`;
+    return jawaban.length > 4000 ? jawaban.slice(0, 4000) + "..." : jawaban;
+  } catch (err) {
+    const daftarError = err?.errors?.map((e) => e.message).join(" | ") || err.message;
+    return `⚠️ AI Gagal Merespons:\n${daftarError}`;
   }
-
-  if (!jawaban) {
-    return `⚠️ <b>AI Gagal Merespons:</b>\n<code>${escapeHTML(errorTerakhir)}</code>`;
-  }
-
-  const teksAman = escapeHTML(jawaban);
-  return teksAman.length > 4000 ? teksAman.slice(0, 4000) + "..." : teksAman;
 }
 
 module.exports = async function handler(req, res) {
@@ -151,7 +155,8 @@ module.exports = async function handler(req, res) {
         } else {
           await sendTyping(chatId);
           const jawabanAI = await tanyaAI(pertanyaan, firstName);
-          await sendMessage(chatId, jawabanAI);
+          // Kirim tanpa HTML parser agar jawaban AI apa pun tidak pernah gagal terkirim
+          await sendMessage(chatId, jawabanAI, false);
         }
       }
       else if (lowerText === "bimtol") {
@@ -253,4 +258,4 @@ module.exports = async function handler(req, res) {
 
   return res.status(200).json({ ok: true });
 };
-      
+        
