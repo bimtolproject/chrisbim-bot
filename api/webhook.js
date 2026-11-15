@@ -1,6 +1,6 @@
 const TOKEN = "9211771792:AAHt3M35nDoY7Rn4aGuDWQkGafykJE7r7sI";
 const TELEGRAM_URL = `https://api.telegram.org/bot${TOKEN}`;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 
 // Bank Soal Kuis
 const BANK_KUIS = [
@@ -16,6 +16,13 @@ const BANK_KUIS = [
   { soal: "Siapa pencipta bot BIMTOL? (tulis username tanpa @)", jawaban: "bimarchp" }
 ];
 
+function escapeHTML(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 async function sendMessage(chatId, text) {
   await fetch(`${TELEGRAM_URL}/sendMessage`, {
     method: "POST",
@@ -28,7 +35,6 @@ async function sendMessage(chatId, text) {
   });
 }
 
-// Menampilkan status "sedang mengetik..." di Telegram saat AI berpikir
 async function sendTyping(chatId) {
   await fetch(`${TELEGRAM_URL}/sendChatAction`, {
     method: "POST",
@@ -52,42 +58,46 @@ async function sendDice(chatId, emoji) {
   return await res.json();
 }
 
-// Fungsi memanggil otak AI Gemini
+async function panggilModelGemini(modelName, promptText) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: promptText }] }]
+    })
+  });
+  return await res.json();
+}
+
+// Fungsi memanggil otak AI Gemini dengan model cadangan & pelaporan error jelas
 async function tanyaAI(pertanyaan, namaUser) {
   if (!GEMINI_API_KEY) {
     return "⚠️ API Key AI belum dipasang di pengaturan Vercel (GEMINI_API_KEY).";
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-  
-  const instruksiSistem = 
+  const instruksiSistem =
     `Kamu adalah BIMTOL, asisten AI pintar di Telegram yang diciptakan oleh @bimarchp. ` +
     `Jawab pertanyaan dari ${namaUser} dengan bahasa Indonesia yang ramah, jelas, dan ringkas. ` +
     `Jangan gunakan format Markdown seperti tanda bintang ganda (**), cukup gunakan teks biasa yang rapi.`;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: `${instruksiSistem}\n\nPertanyaan pengguna: ${pertanyaan}` }
-          ]
-        }
-      ]
-    })
-  });
+  const promptLengkap = `${instruksiSistem}\n\nPertanyaan pengguna: ${pertanyaan}`;
 
-  const json = await res.json();
+  // Coba model utama (gemini-2.5-flash), jika gagal coba cadangan (gemini-2.0-flash)
+  let json = await panggilModelGemini("gemini-2.5-flash", promptLengkap);
+  if (!json?.candidates?.[0]?.content?.parts?.[0]?.text) {
+    json = await panggilModelGemini("gemini-2.0-flash", promptLengkap);
+  }
+
   const jawaban = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
   if (!jawaban) {
-    return "Maaf, otak AI BIMTOL sedang sibuk atau gagal memproses pertanyaan tersebut. Coba lagi sebentar ya!";
+    const detailError = json?.error?.message || "Respons kosong dari server AI.";
+    return `⚠️ <b>AI Gagal Merespons:</b>\n<code>${escapeHTML(detailError)}</code>`;
   }
 
-  // Batasi maksimal 4000 karakter sesuai aturan panjang pesan Telegram
-  return jawaban.length > 4000 ? jawaban.slice(0, 4000) + "..." : jawaban;
+  const teksAman = escapeHTML(jawaban);
+  return teksAman.length > 4000 ? teksAman.slice(0, 4000) + "..." : teksAman;
 }
 
 export default async function handler(req, res) {
@@ -140,7 +150,6 @@ export default async function handler(req, res) {
             `Cara menggunakan fitur AI:\nKetik <code>/tanya</code> diikuti pertanyaan kamu.\n\nContoh:\n<code>/tanya jelaskan cara kerja mesin 4 tak</code>`
           );
         } else {
-          // Munculkan indikator "typing..." di atas layar Telegram
           await sendTyping(chatId);
           const jawabanAI = await tanyaAI(pertanyaan, firstName);
           await sendMessage(chatId, jawabanAI);
