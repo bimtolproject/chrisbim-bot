@@ -1,4 +1,4 @@
-const TOKEN = "9211771792:AAHt3M35nDoY7Rn4aGuDWQkGafykJE7r7sI";
+const TOKEN = (process.env.TELEGRAM_TOKEN || "").trim();
 const TELEGRAM_URL = `https://api.telegram.org/bot${TOKEN}`;
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 
