@@ -1,12 +1,12 @@
-export const config = {
-  api: {
-    bodyParser: false, // Penting agar upload Foto & Video (FormData) tidak rusak
-  },
-};
-
-export default async function handler(req, res) {
-  // Atur izin CORS agar bisa diakses dari GitHub Pages Anda
-  res.setHeader("Access-Control-Allow-Origin", "https://bimtolproject.github.io");
+module.exports = async function handler(req, res) {
+  const allowedOrigins = [
+    "https://bimtolproject.github.io",
+    "https://bimtolproject.my.id"
+  ];
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
@@ -23,8 +23,12 @@ export default async function handler(req, res) {
     return res.status(403).json({ ok: false, description: "Endpoint tidak diizinkan" });
   }
 
+  const token = (process.env.TG_TOKEN || process.env.TELEGRAM_TOKEN || "").trim();
+  if (!token) {
+    return res.status(500).json({ ok: false, description: "Token bot belum terbaca di Vercel" });
+  }
+
   try {
-    // Baca raw body dari request (baik JSON maupun FormData foto/video)
     const chunks = [];
     for await (const chunk of req) {
       chunks.push(chunk);
@@ -32,7 +36,7 @@ export default async function handler(req, res) {
     const rawBody = Buffer.concat(chunks);
 
     const tgRes = await fetch(
-      `https://api.telegram.org/bot${process.env.TG_TOKEN}/${endpoint}`,
+      `https://api.telegram.org/bot${token}/${endpoint}`,
       {
         method: "POST",
         headers: {
@@ -47,4 +51,10 @@ export default async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ ok: false, description: err.message });
   }
-}
+};
+
+module.exports.config = {
+  api: {
+    bodyParser: false,
+  },
+};
